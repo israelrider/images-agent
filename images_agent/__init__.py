@@ -1,1 +1,1 @@
-"""Images library CLI: duplicate detection and vision-assisted sorting."""
+"""Images library CLI: vision-based photo search."""

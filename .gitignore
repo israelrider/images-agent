@@ -3,5 +3,10 @@
 
 # Python
 **/__pycache__/
+*.egg-info/
 
 artifacts
+
+# CLI search output (default --output)
+matches.json
+gallery.html

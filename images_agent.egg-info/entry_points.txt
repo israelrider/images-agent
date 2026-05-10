@@ -1,2 +1,0 @@
-[console_scripts]
-images-agent = images_agent.cli:main

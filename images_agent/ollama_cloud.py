@@ -4,7 +4,7 @@ import json
 import re
 from pathlib import Path
 
-from ollama import Client
+from ollama import Client, ResponseError
 
 from images_agent import config
 
@@ -64,7 +64,17 @@ def chat_vision_text(
             "images": [str(image_path)],
         },
     ]
-    response = client.chat(model=model, messages=messages, stream=False)
+    try:
+        response = client.chat(model=model, messages=messages, stream=False)
+    except ResponseError as e:
+        err_low = str(e.error).lower()
+        if e.status_code == 404 or "not found" in err_low:
+            raise RuntimeError(
+                f"Ollama rejected vision model {model!r} ({e}). "
+                "Use an exact model id with tag from https://ollama.com/api/tags "
+                "(for example gemma4:31b, gemma3:12b, or qwen3-vl:235b-instruct)."
+            ) from e
+        raise
     msg = response.get("message") if isinstance(response, dict) else getattr(response, "message", None)
     if msg is None:
         return ""
