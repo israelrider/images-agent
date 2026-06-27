@@ -263,6 +263,8 @@ def albums_cmd(
         help="Below this CLIP score a photo goes to 'uncategorized'"),
     no_scenes: bool = typer.Option(False, "--no-scenes",
         help="Person-only albums (no scene subfolders)"),
+    by_age: bool = typer.Option(False, "--by-age",
+        help="Insert an age-bucket layer: Person_XX/<age_bucket>/<scene>"),
     op: str = typer.Option("copy", "--op",
         help="How files land in albums: copy | move | symlink"),
     dry_run: bool = typer.Option(False, "--dry-run",
@@ -277,7 +279,7 @@ def albums_cmd(
     albums_mod.run_build_albums(
         resolved, sqlite_path=db, albums_root=albums_root.expanduser().resolve(),
         scene_labels_file=scene_labels, min_scene_score=min_scene_score,
-        no_scenes=no_scenes, op=op, dry_run=dry_run,
+        no_scenes=no_scenes, op=op, dry_run=dry_run, by_age=by_age,
     )
 
 

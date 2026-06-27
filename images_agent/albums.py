@@ -46,6 +46,25 @@ DEFAULT_SCENE_LABELS = [
 ]
 
 
+# Coarse, denormalization-friendly age buckets. Boundaries are intentionally
+# wide because buffalo_l's age estimate is noisy (±5–10 yr typical).
+def age_bucket(age: float) -> str:
+    """Map a per-face age estimate to a coarse bucket folder name."""
+    if age is None or age < 0:
+        return "age_unknown"
+    if age <= 3:
+        return "baby"
+    if age <= 12:
+        return "child"
+    if age <= 19:
+        return "teen"
+    if age <= 39:
+        return "adult"
+    if age <= 59:
+        return "middle_aged"
+    return "senior"
+
+
 def _safe(name: str) -> str:
     bad = '<>:"/\\|?*'
     s = "".join("_" if c in bad else c for c in str(name)).strip().replace(" ", "_")
@@ -100,6 +119,7 @@ def run_build_albums(
     no_scenes: bool,
     op: str,            # "copy" | "move" | "symlink"
     dry_run: bool,
+    by_age: bool = False,
 ) -> None:
     root_resolved = root.resolve()
     conn = index_store._connect(sqlite_path)
@@ -117,6 +137,10 @@ def run_build_albums(
             )
             raise SystemExit(1)
         person_map = faces.person_clusters_by_path(conn, model=faces.FACE_MODEL_NAME)
+        # Per-face (cluster, age) pairs, only needed for the age layer.
+        attr_map = (
+            faces.face_attrs_by_path(conn, model=faces.FACE_MODEL_NAME) if by_age else {}
+        )
     finally:
         conn.close()
 
@@ -135,30 +159,52 @@ def run_build_albums(
     manifest_rows: list[tuple] = []
     ops: list[tuple[Path, Path]] = []
 
+    def _person_folder(c: int) -> str:
+        return "Unsorted_Faces" if c < 0 else f"Person_{c:02d}"
+
     for p in paths:
         src = Path(p)
         scene = _safe(scene_map.get(p, "")) if not no_scenes else ""
         clusters = person_map.get(p, [])
 
-        if not clusters:
-            people = ["No_People"] if p not in paths_with_faces else ["Unsorted_Faces"]
+        # branches: (person_folder, age_bucket_or_None). One destination per branch.
+        if by_age:
+            attrs = attr_map.get(p, [])
+            if not attrs:
+                branches = [("No_People", None)]  # no faces -> no age layer
+            else:
+                # per-face occurrence: a person can appear at several ages
+                branches = sorted({(_person_folder(c), age_bucket(a)) for c, a in attrs})
         else:
-            people = []
-            for c in clusters:
-                people.append("Unsorted_Faces" if c < 0 else f"Person_{c:02d}")
-            people = sorted(set(people))
+            if not clusters:
+                people = ["No_People"] if p not in paths_with_faces else ["Unsorted_Faces"]
+            else:
+                people = sorted({_person_folder(c) for c in clusters})
+            branches = [(person, None) for person in people]
 
-        for person in people:
-            dest_dir = albums_root / person / scene if scene else albums_root / person
+        for person, bucket in branches:
+            dest_dir = albums_root / person
+            if bucket:
+                dest_dir = dest_dir / bucket
+            if scene:
+                dest_dir = dest_dir / scene
             ops.append((src, dest_dir / src.name))
-        manifest_rows.append((p, len(clusters), ";".join(map(str, clusters)),
-                              scene_map.get(p, "")))
+
+        row = [p, len(clusters), ";".join(map(str, clusters)), scene_map.get(p, "")]
+        if by_age:
+            attrs = attr_map.get(p, [])
+            row.append(";".join(f"{a:.0f}" if a is not None and a >= 0 else "" for _, a in attrs))
+            row.append(";".join(age_bucket(a) for _, a in attrs))
+        manifest_rows.append(tuple(row))
 
     # manifest first (safety net, written even on dry run)
     manifest = albums_root / "album_manifest.csv"
+    header = ["path", "num_people", "person_clusters", "scene"]
+    if by_age:
+        header += ["age", "age_bucket"]
     with manifest.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["path", "num_people", "person_clusters", "scene"])
+        w.writerow(header)
         w.writerows(manifest_rows)
     sys.stderr.write(f"Manifest: {manifest}\n")
 

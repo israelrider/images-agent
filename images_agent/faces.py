@@ -55,11 +55,19 @@ def init_face_schema(conn: sqlite3.Connection) -> None:
             det_score   REAL NOT NULL,
             dim         INTEGER NOT NULL,
             vector      BLOB NOT NULL,      -- normalized float32
-            cluster_id  INTEGER             -- filled by clustering; -1 = unsorted
+            cluster_id  INTEGER,            -- filled by clustering; -1 = unsorted
+            age         REAL,               -- buffalo_l genderage estimate; <0 = unknown
+            sex         TEXT                -- buffalo_l gender ('M'/'F') or NULL
         )
         """
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_face_path ON face(path)")
+    # In-place upgrade for face tables created before age/sex existed.
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(face)")}
+    if "age" not in cols:
+        conn.execute("ALTER TABLE face ADD COLUMN age REAL")
+    if "sex" not in cols:
+        conn.execute("ALTER TABLE face ADD COLUMN sex TEXT")
     conn.commit()
 
 
@@ -75,13 +83,14 @@ def delete_faces_for_path(conn, path: str) -> None:
     conn.execute("DELETE FROM face WHERE path = ?", (path,))
 
 
-def insert_face(conn, *, path, mtime_ns, size, model, bbox, det_score, dim, vector) -> None:
+def insert_face(conn, *, path, mtime_ns, size, model, bbox, det_score, dim, vector, age=-1.0, sex=None) -> None:
     conn.execute(
         """
-        INSERT INTO face (path, mtime_ns, size, model, bbox, det_score, dim, vector, cluster_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+        INSERT INTO face (path, mtime_ns, size, model, bbox, det_score, dim, vector, cluster_id, age, sex)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)
         """,
-        (path, mtime_ns, size, model, json.dumps(bbox), float(det_score), dim, vector),
+        (path, mtime_ns, size, model, json.dumps(bbox), float(det_score), dim, vector,
+         float(age), sex),
     )
 
 
@@ -124,6 +133,23 @@ def person_clusters_by_path(conn, *, model: str) -> dict[str, list[int]]:
     for path, cid in cur.fetchall():
         out.setdefault(path, set()).add(int(cid))
     return {p: sorted(c) for p, c in out.items()}
+
+
+def face_attrs_by_path(conn, *, model: str) -> dict[str, list[tuple[int, float]]]:
+    """Map each image path -> list of (cluster_id, age) per detected face.
+
+    cluster_id may be -1 (unsorted); age is the buffalo_l estimate or <0 if
+    unknown/missing. Unlike person_clusters_by_path this is NOT deduped, because
+    age is a per-face occurrence (the same person can appear at several ages).
+    """
+    cur = conn.execute(
+        "SELECT path, cluster_id, age FROM face WHERE model = ? AND cluster_id IS NOT NULL",
+        (model,),
+    )
+    out: dict[str, list[tuple[int, float]]] = {}
+    for path, cid, age in cur.fetchall():
+        out.setdefault(path, []).append((int(cid), float(age) if age is not None else -1.0))
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -216,11 +242,15 @@ def run_face_index(
                     continue
                 v = np.asarray(emb, dtype=np.float32).reshape(-1)
                 bbox = [float(x) for x in (f.bbox.tolist() if hasattr(f.bbox, "tolist") else f.bbox)]
+                # buffalo_l's genderage sub-model fills these; default to unknown if absent.
+                age = float(getattr(f, "age", -1))
+                sex = getattr(f, "sex", None)
+                sex = str(sex) if sex is not None else None
                 insert_face(
                     conn,
                     path=key, mtime_ns=st.st_mtime_ns, size=st.st_size,
                     model=FACE_MODEL_NAME, bbox=bbox, det_score=float(getattr(f, "det_score", 1.0)),
-                    dim=v.shape[0], vector=v.tobytes(),
+                    dim=v.shape[0], vector=v.tobytes(), age=age, sex=sex,
                 )
                 added += 1
             processed += 1
