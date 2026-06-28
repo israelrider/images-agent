@@ -49,3 +49,23 @@ Target machine (**st7**):
 
 Only real things to watch: disk space (if copying) and the P620's age — neither
 is a blocker.
+
+## MiVOLO age model (added)
+
+Image-only age estimation for per-person life-stage albums uses **MiVOLO v2**
+(`iitolstykh/mivolo_v2`) — see [AGE_ESTIMATION.md](AGE_ESTIMATION.md). Hardware
+reality on st7:
+
+| Stage | Compute | On st7 |
+|---|---|---|
+| crop faces (PIL, from stored bboxes) | one pass over a person's photos | seconds–minutes |
+| MiVOLO age (384px ViT, CPU) | one forward per face crop | ~3,850 faces in tens of minutes |
+
+- **CPU only:** the installed torch is `2.12.x+cpu` (the model's pinned `2.5.1`
+  has no Python-3.13 wheel; 2.12 works). The P620 is unused for MiVOLO. GPU would
+  cut the age pass to a few minutes but isn't required for a one-time run.
+- **Disk:** model weights `model.safetensors` ≈ 115 MB; plus a dedicated
+  `.venv-mivolo` (torch + transformers + timm ≈ ~1–2 GB). Trivial vs. free space.
+- **RAM:** negligible — batched inference, one 384px crop set at a time.
+- **Isolation:** MiVOLO's pinned deps (timm-dev) live in `.venv-mivolo`, run as a
+  subprocess, so the shared `.venv` (torch 2.12 for sibling projects) is untouched.

@@ -109,3 +109,27 @@ and apply it as an **optional layer between Person and Scene**.
   `age`/`age_bucket`; spot-check a known child vs. adult photo lands in the right
   bucket.
 - With `--by-age` off, the produced tree is byte-for-byte the prior layout.
+
+---
+
+## Outcome / status (updated)
+
+The `--by-age` feature shipped, but **its `buffalo_l` age estimates proved
+unusable** on the real library (catastrophic errors — a child tagged 47/60). The
+age-organization goal was instead achieved by estimating age **from the face
+crop with MiVOLO** (image-only), producing per-person **life-stage** folders.
+Full story, model comparison, and setup: [AGE_ESTIMATION.md](AGE_ESTIMATION.md).
+
+What was built/done since the original plan:
+- **`--people-only`** flag added to `albums`: keep only real `Person_XX` folders
+  (drop `No_People` + `Unsorted_Faces`). With `--no-scenes` this yields a flat
+  folder of files per person — the layout used for the age work (`_Albums2`).
+- `age_bucket` coarsened to `child`/`adult`/`senior` (from the original 6 bands).
+- Clustering settled at `--cluster-eps 0.45` (485 people on ~7k photos); raising
+  eps chains distinct people into one blob — tune **down**, not up.
+- Per-person MiVOLO life-stage albums built and visually validated for two
+  people (person A, person B). Person folders are renamed to real names by hand
+  (output-only; not preserved across an `albums` rebuild).
+
+Open follow-ups: package the MiVOLO pipeline into a CLI command; tidy
+`age_unknown` residues; optionally run MiVOLO on the remaining people.

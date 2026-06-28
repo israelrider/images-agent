@@ -93,9 +93,16 @@ A photo with several people is **copied under each person** (denormalized), so
 `Person → age_bucket → scene`.
 
 **Age buckets:** `child` (≤17) · `adult` (18–59) · `senior` (60+) ·
-`age_unknown`. Estimates come free from `buffalo_l` and are noisy (±5–10 yr, and
-biased high for children), so buckets are intentionally coarse. Omit `--by-age`
-for a plain `Person/scene` tree.
+`age_unknown`. Omit `--by-age` for a plain `Person/scene` tree.
+
+> ⚠️ **`--by-age` accuracy is poor on real-world libraries.** `buffalo_l`'s
+> built-in age estimate is not just noisy — it fails *catastrophically* on dim /
+> non-frontal / child faces (observed: a ~10-year-old tagged 47 and 60). It is
+> usable only as the crudest split. For trustworthy per-person age organization
+> we instead estimate age from the face crop with **MiVOLO** (a dedicated
+> image-only age model), which is robust to those poses. See
+> [docs/AGE_ESTIMATION.md](docs/AGE_ESTIMATION.md) for the full comparison,
+> findings, and the per-person life-stage workflow.
 
 ---
 
@@ -146,14 +153,17 @@ Re-runs DBSCAN over already-stored face vectors in seconds. Use this to tune
 
 ### `albums` — build the album tree
 ```bash
-images-agent albums <ALBUMS_ROOT> [--by-age] [--no-scenes]
+images-agent albums <ALBUMS_ROOT> [--by-age] [--no-scenes] [--people-only]
                     [--op copy|move|symlink] [--dry-run]
                     [--scene-labels FILE] [--min-scene-score F]
 ```
 Reuses the cached CLIP vectors to tag scenes (zero extra image embedding) and the
 face clusters to group people. `--dry-run` writes only the manifest.
-`--op symlink` avoids duplication (Windows symlinks need Developer Mode/admin;
-falls back to copy if denied). `--op move` relocates originals — use with care.
+`--people-only` keeps just real `Person_XX` folders, dropping `No_People` and
+`Unsorted_Faces` (e.g. `albums DST --no-scenes --people-only` → one flat folder
+of files per person). `--op symlink` avoids duplication (Windows symlinks need
+Developer Mode/admin; falls back to copy if denied). `--op move` relocates
+originals — use with care.
 Default scene vocabulary (16): beach, mountains, city street, indoor portrait,
 group of people, wedding, birthday party, food, pets, nature landscape, document
 or screenshot, car or vehicle, sports, concert, sunset, night photo. Override

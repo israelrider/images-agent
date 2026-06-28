@@ -10,3 +10,6 @@ artifacts
 # CLI search output (default --output)
 matches.json
 gallery.html
+
+# Local AI-assistant settings
+.claude/

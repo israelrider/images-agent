@@ -119,3 +119,16 @@ The `face` table lives in the **same** SQLite file as the CLIP `embedding` table
 | Weak/false faces | `--min-det-score` up (e.g. 0.6) |
 | Wrong scene buckets | edit `DEFAULT_SCENE_LABELS` / `--scene-labels` |
 | Disk pressure from copies | `--op symlink` |
+
+> **Note (the `--cluster-eps` row above is misleading):** raising eps does *not*
+> merge duplicate people — past ~0.5 it chains *distinct* people into one giant
+> cluster. Tune **down** for over-split. `0.45` worked on ~7k photos (485 people).
+
+## Status update — albums evolved beyond this brief
+
+Since this handoff: added `albums --people-only` (real `Person_XX` folders only),
+coarsened age buckets, and — most importantly — found `buffalo_l`'s `--by-age`
+estimates **unusable** (catastrophic on children/dim faces). Per-person
+age organization now uses **MiVOLO** (image-only age on face crops) to build
+**life-stage** folders. Full details: [AGE_ESTIMATION.md](AGE_ESTIMATION.md);
+project status: [PROJECT_PLAN.md](PROJECT_PLAN.md).
