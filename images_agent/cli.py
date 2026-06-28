@@ -265,6 +265,8 @@ def albums_cmd(
         help="Person-only albums (no scene subfolders)"),
     by_age: bool = typer.Option(False, "--by-age",
         help="Insert an age-bucket layer: Person_XX/<age_bucket>/<scene>"),
+    people_only: bool = typer.Option(False, "--people-only",
+        help="Keep only Person_XX folders; drop No_People and Unsorted_Faces"),
     op: str = typer.Option("copy", "--op",
         help="How files land in albums: copy | move | symlink"),
     dry_run: bool = typer.Option(False, "--dry-run",
@@ -280,6 +282,7 @@ def albums_cmd(
         resolved, sqlite_path=db, albums_root=albums_root.expanduser().resolve(),
         scene_labels_file=scene_labels, min_scene_score=min_scene_score,
         no_scenes=no_scenes, op=op, dry_run=dry_run, by_age=by_age,
+        people_only=people_only,
     )
 
 

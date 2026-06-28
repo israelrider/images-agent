@@ -115,6 +115,7 @@ def run_build_albums(
     op: str,            # "copy" | "move" | "symlink"
     dry_run: bool,
     by_age: bool = False,
+    people_only: bool = False,   # keep only Person_XX clusters; drop No_People + Unsorted_Faces
 ) -> None:
     root_resolved = root.resolve()
     conn = index_store._connect(sqlite_path)
@@ -163,18 +164,23 @@ def run_build_albums(
         clusters = person_map.get(p, [])
 
         # branches: (person_folder, age_bucket_or_None). One destination per branch.
+        # With people_only, drop No_People and Unsorted_Faces (cluster -1): keep
+        # only real Person_XX clusters.
         if by_age:
             attrs = attr_map.get(p, [])
             if not attrs:
-                branches = [("No_People", None)]  # no faces -> no age layer
+                branches = [] if people_only else [("No_People", None)]  # no faces -> no age layer
             else:
                 # per-face occurrence: a person can appear at several ages
-                branches = sorted({(_person_folder(c), age_bucket(a)) for c, a in attrs})
+                branches = sorted({(_person_folder(c), age_bucket(a)) for c, a in attrs
+                                   if not (people_only and c < 0)})
         else:
             if not clusters:
-                people = ["No_People"] if p not in paths_with_faces else ["Unsorted_Faces"]
+                people = [] if people_only else (
+                    ["No_People"] if p not in paths_with_faces else ["Unsorted_Faces"])
             else:
-                people = sorted({_person_folder(c) for c in clusters})
+                people = sorted({_person_folder(c) for c in clusters
+                                 if not (people_only and c < 0)})
             branches = [(person, None) for person in people]
 
         for person, bucket in branches:
