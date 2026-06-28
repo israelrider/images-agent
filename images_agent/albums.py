@@ -47,21 +47,16 @@ DEFAULT_SCENE_LABELS = [
 
 
 # Coarse, denormalization-friendly age buckets. Boundaries are intentionally
-# wide because buffalo_l's age estimate is noisy (±5–10 yr typical).
+# wide because buffalo_l's age estimate is noisy (±5–10 yr typical) and skews
+# old, so three broad buckets keep a person's photos from scattering.
 def age_bucket(age: float) -> str:
     """Map a per-face age estimate to a coarse bucket folder name."""
     if age is None or age < 0:
         return "age_unknown"
-    if age <= 3:
-        return "baby"
-    if age <= 12:
+    if age <= 17:
         return "child"
-    if age <= 19:
-        return "teen"
-    if age <= 39:
-        return "adult"
     if age <= 59:
-        return "middle_aged"
+        return "adult"
     return "senior"
 
 
